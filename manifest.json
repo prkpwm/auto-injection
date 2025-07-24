@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Auto Injection",
+  "version": "1.0",
+  "description": "Autofill on webpages with values from a config file",
+  "permissions": ["storage", "scripting", "tabs", "activeTab"],
+  "host_permissions": ["http://*/", "https://*/"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "injection.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["config.json"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

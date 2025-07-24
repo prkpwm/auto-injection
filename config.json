@@ -1,0 +1,13 @@
+{
+  "http://localhost:4300/selling-device/*": {
+    "USERNAME": "JohnDoe",
+    "EMAIL": "john@example.com",
+    "PHONE": "0912345678",
+    "PASSWORD": "P@$$\\/\\/0rd",
+    "ระบุเบอร์โทรศัพท์": "66955661611",
+    "ค้นหาด้วยรหัสสินค้าหรือหมายเลขสินค้า": "202112030010033"
+  },
+  "http://localhost:4300/liveness-monitoring/*":{
+    "ระบุบัญชีผู้ใช้งาน":"OMRLAN02"
+  }
+}
