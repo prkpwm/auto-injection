@@ -5,6 +5,12 @@
   "description": "Autofill on webpages with values from a config file",
   "permissions": ["storage", "scripting", "tabs", "activeTab"],
   "host_permissions": ["http://*/", "https://*/"],
+  "author": "PRKPWM",
+  "icons": {
+    "16": "injection.png",
+    "48": "injection.png",
+    "128": "injection.png"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": "injection.png"
