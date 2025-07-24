@@ -2,9 +2,17 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
     const config = urlConfigs || {};
     const currentUrl = window.location.href;
     let replacements = {};
+    const sortedEntries = Object.entries(config).sort((a, b) => a[0].length - b[0].length);
+    
+    chrome.runtime.sendMessage({
+        type: 'DEBUG',
+        data: {
+            text: sortedEntries
+        }
+    });
 
-    for (const [pattern, values] of Object.entries(config)) {
-        const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+    for (const [pattern, values] of sortedEntries) {
+        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
         if (regex.test(currentUrl)) {
             replacements = values || {};
             break;
@@ -66,7 +74,7 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
     function findMatchingConfig(url, configs) {
         for (const [pattern, replacements] of Object.entries(configs)) {
             try {
-               
+
                 const regex = new RegExp(pattern.replace(/\*/g, '.*'));
                 if (regex.test(url)) {
                     return replacements;
@@ -82,13 +90,13 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
         if (node.nodeType === Node.TEXT_NODE) {
             let text = node.textContent;
             for (const [placeholder, value] of Object.entries(replacements)) {
-               
+
                 const regex = new RegExp(placeholder, 'g');
                 text = text.replace(regex, value);
             }
             node.textContent = text;
         } else {
-           
+
             for (const child of node.childNodes) {
                 replaceTextInNode(child, replacements);
             }

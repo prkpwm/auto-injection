@@ -51,7 +51,7 @@ async function loadConfig() {
     const configs = urlConfigs || {};
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-   
+    
     if (!tab || !tab.url || !tab.url.startsWith('http')) {
         renderUI(null);
         return;
@@ -85,8 +85,12 @@ function renderUI(tab) {
     const replaceBtnEl = document.getElementById('replaceBtn');
 
     if (matchedPattern) {
-       
-        configInfoEl.innerHTML = `<strong>Editing config for:</strong> ${matchedPattern}`;
+        // A config was found, so we show the editor for it.
+        // The pattern is now in an editable input field.
+        configInfoEl.innerHTML = `
+            <label for="matchedPatternInput" style="display:block; margin-bottom: 4px;"><strong>Editing config for URL:</strong></label>
+            <input type="text" id="matchedPatternInput" value="${matchedPattern}" style="width: 95%;" placeholder="e.g., https://*.example.com/*">
+        `;
         configInfoEl.style.display = 'block';
         tableContainerEl.style.display = 'block';
         actionsEl.style.display = 'flex';
@@ -94,7 +98,7 @@ function renderUI(tab) {
         replaceBtnEl.disabled = false;
         renderReplacements();
     } else {
-       
+        // No config found, show the creation UI.
         configInfoEl.style.display = 'none';
         tableContainerEl.style.display = 'none';
         actionsEl.style.display = 'none';
@@ -103,7 +107,7 @@ function renderUI(tab) {
         if (tab) {
             newConfigAreaEl.style.display = 'block';
             const urlObject = new URL(tab.url);
-           
+            
             document.getElementById('newUrlPatternInput').value = `${urlObject.protocol}//${urlObject.hostname}/*`;
         } else {
             newConfigAreaEl.style.display = 'none';
@@ -117,7 +121,7 @@ function renderReplacements() {
     const container = document.getElementById('replacementList');
     container.innerHTML = '';
 
-   
+    
     const header = document.createElement('div');
     header.className = 'table-header';
     header.innerHTML = `
@@ -127,13 +131,13 @@ function renderReplacements() {
     `;
     container.appendChild(header);
 
-   
+    
     Object.entries(replacements).forEach(([key, value], index) => {
         const row = createReplacementRow(key, value, index);
         container.appendChild(row);
     });
 
-   
+    
     const newRow = createReplacementRow('', '', null, true);
     container.appendChild(newRow);
 }
@@ -172,7 +176,7 @@ async function createNewConfig() {
         return;
     }
 
-   
+    
     try {
         new RegExp(newPattern.replace(/\*/g, '.*'));
     } catch (e) {
@@ -207,11 +211,31 @@ async function applyContentScript() {
 }
 
 async function saveChanges() {
-    if (!matchedPattern) {
+    // Use the globally stored pattern as the 'original' key
+    const oldPattern = matchedPattern;
+
+    if (!oldPattern) {
         showStatus('No config loaded to save.', true);
         return;
     }
 
+    // Get the new (potentially edited) pattern from the input field
+    const newPattern = document.getElementById('matchedPatternInput').value.trim();
+
+    if (!newPattern) {
+        showStatus('URL pattern cannot be empty.', true);
+        return;
+    }
+
+    // Validate the new pattern
+    try {
+        new RegExp(newPattern.replace(/\*/g, '.*'));
+    } catch (e) {
+        showStatus('The provided pattern is invalid.', true);
+        return;
+    }
+
+    // Collect all the key/value replacement pairs from the UI
     const newReplacements = {};
     document.querySelectorAll('.replacement-row').forEach(row => {
         const keyInput = row.querySelector('.key');
@@ -226,13 +250,27 @@ async function saveChanges() {
 
     const { urlConfigs } = await chrome.storage.local.get('urlConfigs');
     const configs = urlConfigs || {};
-    configs[matchedPattern] = newReplacements;
 
+    // If the pattern was changed, update the key in the storage object.
+    if (newPattern !== oldPattern) {
+        // Check if the new pattern name would overwrite a different existing config.
+        if (configs.hasOwnProperty(newPattern)) {
+            showStatus('A configuration with this new pattern already exists.', true);
+            return;
+        }
+        // Remove the old configuration entry.
+        delete configs[oldPattern];
+    }
+
+    // Save the replacements under the new (or existing) pattern key.
+    configs[newPattern] = newReplacements;
     await chrome.storage.local.set({ urlConfigs: configs });
-    replacements = newReplacements;
-    showStatus('Configuration saved!');
-    renderReplacements();
+
+    showStatus('Configuration saved successfully!');
+    // Reload the entire UI from storage to ensure consistency.
+    await loadConfig();
 }
+
 
 async function exportConfig() {
     const { urlConfigs } = await chrome.storage.local.get('urlConfigs');
@@ -271,4 +309,3 @@ function importConfig(event) {
     reader.readAsText(file);
     event.target.value = '';
 }
-
