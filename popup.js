@@ -15,7 +15,9 @@ document.getElementById('exportBtn').addEventListener('click', exportConfig);
 document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
 document.getElementById('importFile').addEventListener('change', importConfig);
 document.getElementById('createConfigBtn').addEventListener('click', createNewConfig);
-document.getElementById('newSuiteBtn').addEventListener('click', addNewSuite); // Added new event listener
+document.getElementById('newSuiteBtn').addEventListener('click', addNewSuite);
+document.getElementById('editSuiteBtn').addEventListener('click', editSuiteName);
+document.getElementById('deleteSuiteBtn').addEventListener('click', deleteSuite);
 
 // Dynamic dropdown suite switch
 document.addEventListener('change', (event) => {
@@ -105,7 +107,7 @@ async function loadConfig() {
             console.error(`Invalid regex pattern in config: ${pattern}`);
         }
     }
-    
+
     renderUI(tab);
 }
 
@@ -115,6 +117,9 @@ function renderUI(tab) {
     const tableContainerEl = document.querySelector('.table-container');
     const actionsEl = document.querySelector('.actions');
     const replaceBtnEl = document.getElementById('replaceBtn');
+    const newSuiteBtnEl = document.getElementById('newSuiteBtn');
+    const editSuiteBtnEl = document.getElementById('editSuiteBtn');
+    const deleteSuiteBtnEl = document.getElementById('deleteSuiteBtn');
 
     if (matchedPattern) {
         const optionsHtml = layer2Keys.map(key =>
@@ -122,31 +127,40 @@ function renderUI(tab) {
         ).join('');
 
         configInfoEl.innerHTML = `
-      <label for="matchedPatternInput" style="display:block; margin-bottom: 4px;"><strong>Editing config for URL:</strong></label>
-      <input type="text" id="matchedPatternInput" value="${matchedPattern}" style="width: 95%;" placeholder="e.g., https://*.example.com/*">
+   <label for="matchedPatternInput" style="display:block; margin-bottom: 4px;"><strong>Editing config for URL:</strong></label>
+   <input type="text" id="matchedPatternInput" value="${matchedPattern}" style="width: 95%;" placeholder="e.g., https://*.example.com/*">
 
-      <label for="myDropdown" class="dropdown-label">
-        Select suite:
-      </label>
-      <select
-        id="myDropdown"
-      >
-        ${optionsHtml}
-      </select>
-   
-    `;
+   <label for="myDropdown" class="dropdown-label">
+    Select suite:
+   </label>
+   <select
+    id="myDropdown"
+   >
+    ${optionsHtml}
+   </select>
+ 
+  `;
 
         configInfoEl.style.display = 'block';
         tableContainerEl.style.display = 'block';
         actionsEl.style.display = 'flex';
         newConfigAreaEl.style.display = 'none';
+
         replaceBtnEl.disabled = false;
+        newSuiteBtnEl.disabled = false;
+        editSuiteBtnEl.disabled = false;
+        deleteSuiteBtnEl.disabled = false;
+
         renderReplacements();
     } else {
         configInfoEl.style.display = 'none';
         tableContainerEl.style.display = 'none';
         actionsEl.style.display = 'none';
+
         replaceBtnEl.disabled = true;
+        newSuiteBtnEl.disabled = true;
+        editSuiteBtnEl.disabled = true;
+        deleteSuiteBtnEl.disabled = true;
 
         if (tab) {
             newConfigAreaEl.style.display = 'block';
@@ -167,10 +181,10 @@ function renderReplacements() {
     const header = document.createElement('div');
     header.className = 'table-header';
     header.innerHTML = `
-        <div>Key (Placeholder)</div>
-        <div>Value (Replacement)</div>
-        <div>Action</div>
-    `;
+    <div>Key</div>
+    <div>Value</div>
+    <div>Action</div>
+  `;
     container.appendChild(header);
 
 
@@ -190,20 +204,20 @@ function createReplacementRow(key, value, index, isNew = false) {
 
     if (!isNew) {
         row.innerHTML = `
-            <div><input type="text" class="key" value="${key}" placeholder="URL Placeholder"></div>
-            <div><input type="text" class="value" value="${value}" placeholder="Replacement Value"></div>
-            <button class="icon-btn remove-btn" data-index="${index}" title="Remove">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#d9534f" width="20" height="20"><path d="M7 21C6.45 21 5.979 20.804 5.587 20.412C5.195 20.02 5 19.55 5 19V6H4V4H9V3H15V4H20V6H19V19C19 19.55 18.804 20.021 18.412 20.413C18.02 20.805 17.55 21 17 21H7Z"/></svg>
-            </button>
-        `;
+      <div><input type="text" class="key" value="${key}" placeholder="URL Placeholder"></div>
+      <div><input type="text" class="value" value="${value}" placeholder="Replacement Value"></div>
+      <button class="icon-btn remove-btn" data-index="${index}" title="Remove">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#d9534f" width="20" height="20"><path d="M7 21C6.45 21 5.979 20.804 5.587 20.412C5.195 20.02 5 19.55 5 19V6H4V4H9V3H15V4H20V6H19V19C19 19.55 18.804 20.021 18.412 20.413C18.02 20.805 17.55 21 17 21H7Z"/></svg>
+      </button>
+    `;
     } else {
         row.innerHTML = `
-            <div><input type="text" id="newKey" placeholder="New Key"></div>
-            <div><input type="text" id="newValue" placeholder="New Value"></div>
-            <button class="icon-btn add-btn" title="Add">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#4caf50" width="20" height="20"><path d="M11 19V13H5V11H11V5H13V11H19V13H13V19H11Z"/></svg>
-            </button>
-        `;
+      <div><input type="text" id="newKey" placeholder="New Key"></div>
+      <div><input type="text" id="newValue" placeholder="New Value"></div>
+      <button class="icon-btn add-btn" title="Add">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#4caf50" width="20" height="20"><path d="M11 19V13H5V11H11V5H13V11H19V13H13V19H11Z"/></svg>
+      </button>
+    `;
     }
     return row;
 }
@@ -234,7 +248,7 @@ async function createNewConfig() {
         return;
     }
 
-    configs[newPattern] = {suite1:{}};
+    configs[newPattern] = { suite1: {} };
     await chrome.storage.local.set({ urlConfigs: configs });
     showStatus('New configuration created successfully!');
     await loadConfig();
@@ -272,10 +286,77 @@ async function addNewSuite() {
     await loadConfig(); // Reload to update the dropdown and display the new suite
 }
 
+async function editSuiteName() {
+    if (!matchedPattern || !suiteName) {
+        showStatus('No suite selected to edit.', true);
+        return;
+    }
+
+    const oldSuiteName = suiteName;
+    const newSuiteName = prompt('Enter the new name for this suite:', oldSuiteName);
+
+    if (!newSuiteName || newSuiteName.trim() === '') {
+        showStatus('Suite name cannot be empty.', true);
+        return;
+    }
+
+    const trimmedNewName = newSuiteName.trim();
+
+    if (trimmedNewName === oldSuiteName) {
+        return; // No changes made
+    }
+
+    if (configs[matchedPattern] && configs[matchedPattern][trimmedNewName]) {
+        showStatus(`Suite "${trimmedNewName}" already exists for this URL pattern.`, true);
+        return;
+    }
+
+    // Rename the suite by copying data and deleting the old key
+    configs[matchedPattern][trimmedNewName] = configs[matchedPattern][oldSuiteName];
+    delete configs[matchedPattern][oldSuiteName];
+
+    await chrome.storage.local.set({ urlConfigs: configs });
+
+    // Update the current selection
+    suiteName = trimmedNewName;
+    localStorage.setItem('lastSuite', suiteName);
+
+    showStatus(`Suite renamed to "${trimmedNewName}"`);
+    await loadConfig(); // Reload UI to reflect changes
+}
+
+async function deleteSuite() {
+    if (!matchedPattern || !suiteName) {
+        showStatus('No suite selected to delete.', true);
+        return;
+    }
+
+    const suiteToDelete = suiteName;
+    const availableSuites = Object.keys(configs[matchedPattern] || {});
+    if (availableSuites.length <= 1) {
+        showStatus('Cannot delete the last suite. Add another suite first.', true, 4000);
+        return;
+    }
+
+    const confirmation = confirm(`Are you sure you want to delete the suite "${suiteToDelete}"? This action cannot be undone.`);
+    if (!confirmation) {
+        return;
+    }
+
+    delete configs[matchedPattern][suiteToDelete];
+    await chrome.storage.local.set({ urlConfigs: configs });
+
+    localStorage.removeItem('lastSuite');
+    showStatus(`Suite "${suiteToDelete}" has been deleted.`);
+    await loadConfig(); // Reload UI
+}
+
 async function applyContentScript() {
+    // Save the selected suite name to session storage before injecting
+    await chrome.storage.local.set({ activeSuiteName: suiteName });
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['contentScript.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id, }, files: ['contentScript.js'] });
         showStatus('Placeholders replaced!');
     } catch (error) {
         console.error("Script injection failed:", error);

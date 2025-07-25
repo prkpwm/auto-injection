@@ -1,8 +1,10 @@
 chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
+
     const config = urlConfigs || {};
     const currentUrl = window.location.href;
     let replacements = {};
     const sortedEntries = Object.entries(config).sort((a, b) => a[0].length - b[0].length);
+    let suiteName = "suite1"
 
     chrome.runtime.sendMessage({
         type: 'DEBUG',
@@ -15,7 +17,7 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
         const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
         const regex2 = new RegExp('^' + pattern.slice(0, -2) + '$')
         if (regex.test(currentUrl) || regex2.test(currentUrl)) {
-            replacements = values.suite1 || {};
+            replacements = values[suiteName] || {};
             break;
         }
     }
@@ -36,6 +38,12 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
 
     function replaceText(element) {
         if ((element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') && !processedElements.has(element)) {
+              chrome.runtime.sendMessage({
+                    type: 'DEBUG',
+                    data: {
+                        text: `replaceText ${ JSON.stringify(replacements)} `
+                    }
+                });
             for (const [placeholder, value] of Object.entries(replacements)) {
                 const attributesToCheck = ['name', 'id', 'placeholder', 'type'];
                 if (attributesToCheck.some(attr => {
@@ -65,21 +73,29 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
         }
     }
 
-    replaceText(document.body);
     new MutationObserver(mutations => {
         mutations.forEach(m => m.addedNodes.forEach(replaceText));
     }).observe(document.body, { childList: true, subtree: true });
 
 
 
-    function findMatchingConfig(url, configs) {
+    function findMatchingConfig(url, configs, suiteName) {
         for (const [pattern, replacements] of Object.entries(configs)) {
             try {
 
                 const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
                 const regex2 = new RegExp('^' + pattern.slice(0, -2) + '$')
+
+    
                 if (regex.test(url) || regex2.test(url)) {
-                    return replacements.suite1;
+
+                    chrome.runtime.sendMessage({
+                        type: 'DEBUG',
+                        data: {
+                            text: replacements[suiteName]
+                        }
+                    });
+                    return replacements[suiteName];
                 }
             } catch (e) {
                 console.error(`AutoKey: Invalid pattern in config: ${pattern}`);
@@ -88,36 +104,28 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
         return null;
     }
 
-    function replaceTextInNode(node, replacements) {
-        if (node.nodeType === Node.TEXT_NODE) {
-            let text = node.textContent;
-            for (const [placeholder, value] of Object.entries(replacements)) {
-
-                const regex = new RegExp(placeholder, 'g');
-                text = text.replace(regex, value);
-            }
-            node.textContent = text;
-        } else {
-
-            for (const child of node.childNodes) {
-                replaceTextInNode(child, replacements);
-            }
-        }
-    }
-
 
     async function main() {
         const { urlConfigs } = await chrome.storage.local.get('urlConfigs');
+        const { activeSuiteName } = await chrome.storage.local.get('activeSuiteName');
+        suiteName = activeSuiteName
+
+        chrome.runtime.sendMessage({
+            type: 'DEBUG',
+            data: {
+                text: suiteName
+            }
+        });
         if (!urlConfigs || Object.keys(urlConfigs).length === 0) {
             console.log('AutoKey: No configurations found.');
             return;
         }
 
-        const replacements = findMatchingConfig(window.location.href, urlConfigs);
+        replacements = findMatchingConfig(window.location.href, urlConfigs, activeSuiteName);
 
         if (replacements && Object.keys(replacements).length > 0) {
             console.log(`AutoKey: Found config for ${window.location.href}. Applying replacements.`);
-            replaceTextInNode(document.body, replacements);
+            replaceText(document.body)
         }
     }
 

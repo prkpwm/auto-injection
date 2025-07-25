@@ -222,3 +222,45 @@ button.primary-btn:hover {
 #matchedPatternInput {
     padding: 10px 12px;
 }
+
+.suite-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto; /* Pushes the suite actions to the left of the inject button */
+    margin-bottom: 16px;
+}
+
+/* Make suite management buttons smaller */
+.suite-actions button {
+    padding: 6px 10px;
+}
+
+/* Specific styling for the delete button */
+/* .delete-btn {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: white;
+} */
+
+.delete-btn:hover {
+    background-color: var(--danger-hover-color);
+    border-color: var(--danger-hover-color);
+    color: white;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+button:disabled:hover {
+    background-color: initial;
+    border-color: initial;
+    color: initial;
+}
+
+.delete-btn:disabled:hover {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: white;
+}
