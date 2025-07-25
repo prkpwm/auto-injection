@@ -23,6 +23,7 @@ body {
 
 .container {
     padding: 16px;
+    /* width: min-content; */
 }
 
 .header {
@@ -164,4 +165,60 @@ button.primary-btn:hover {
 
 .status-message.error {
     color: var(--danger-color);
+}
+
+/* Add to your existing CSS */
+
+/* Style for the select dropdown */
+#myDropdown {
+    /* Remove default browser styling */
+    -webkit-appearance: none; /* For Chrome, Safari, Edge */
+    -moz-appearance: none;    /* For Firefox */
+    appearance: none;
+
+    /* Basic styling */
+    width: 95%;
+    padding: 10px 12px; /* Increased padding for better visual spacing */
+    border: 1px solid var(--border-color);
+    border-radius: 6px; /* Slightly more rounded corners */
+    font-size: 14px; /* Slightly larger font for readability */
+    box-sizing: border-box;
+    background-color: var(--card-bg-color); /* Use card background for consistency */
+    color: var(--text-color);
+    cursor: pointer;
+    line-height: 1.5; /* Ensure good line height */
+
+    /* Custom arrow using background-image */
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23333" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 12px center; /* Position arrow on the right */
+    background-size: 16px; /* Size of the arrow icon */
+
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#myDropdown:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
+}
+
+/* Style for the label associated with the dropdown */
+.dropdown-label {
+    display: block;
+    margin-top: 8px;
+    margin-bottom: 8px; /* Add some space below the label */
+    font-size: 13px;
+    font-weight: 700; /* Make it a bit bolder */
+    color: var(--subtle-text-color); /* Use subtle text color */
+}
+
+/* Ensure options inside the select also inherit text color */
+#myDropdown option {
+    color: var(--text-color);
+    background-color: var(--card-bg-color);
+}
+
+#matchedPatternInput {
+    padding: 10px 12px;
 }

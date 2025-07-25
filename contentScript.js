@@ -3,7 +3,7 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
     const currentUrl = window.location.href;
     let replacements = {};
     const sortedEntries = Object.entries(config).sort((a, b) => a[0].length - b[0].length);
-    
+
     chrome.runtime.sendMessage({
         type: 'DEBUG',
         data: {
@@ -13,8 +13,9 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
 
     for (const [pattern, values] of sortedEntries) {
         const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-        if (regex.test(currentUrl)) {
-            replacements = values || {};
+        const regex2 = new RegExp('^' + pattern.slice(0, -2) + '$')
+        if (regex.test(currentUrl) || regex2.test(currentUrl)) {
+            replacements = values.suite1 || {};
             break;
         }
     }
@@ -75,9 +76,10 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
         for (const [pattern, replacements] of Object.entries(configs)) {
             try {
 
-                const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-                if (regex.test(url)) {
-                    return replacements;
+                const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+                const regex2 = new RegExp('^' + pattern.slice(0, -2) + '$')
+                if (regex.test(url) || regex2.test(url)) {
+                    return replacements.suite1;
                 }
             } catch (e) {
                 console.error(`AutoKey: Invalid pattern in config: ${pattern}`);

@@ -1,17 +1,38 @@
 let replacements = {};
 let matchedPattern = '';
+let configSets = {};
+let suiteName = localStorage.getItem('lastSuite') || "suite1";
+let configs = {};
+
 const statusEl = document.getElementById('status');
+let layer2Keys = []
 
 // --- EVENT LISTENERS ---
-
 document.addEventListener('DOMContentLoaded', loadConfig);
 document.getElementById('replaceBtn').addEventListener('click', applyContentScript);
 document.getElementById('saveBtn').addEventListener('click', saveChanges);
 document.getElementById('exportBtn').addEventListener('click', exportConfig);
 document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
 document.getElementById('importFile').addEventListener('change', importConfig);
-// Listener for the new button to create a config
 document.getElementById('createConfigBtn').addEventListener('click', createNewConfig);
+document.getElementById('newSuiteBtn').addEventListener('click', addNewSuite); // Added new event listener
+
+// Dynamic dropdown suite switch
+document.addEventListener('change', (event) => {
+    if (event.target.id === 'myDropdown') {
+        suiteName = event.target.value;
+        localStorage.setItem('lastSuite', suiteName);
+        // When suite changes, ensure we update the `replacements` variable
+        // from the `configs` object using the `matchedPattern` and new `suiteName`.
+        if (configs[matchedPattern] && configs[matchedPattern][suiteName]) {
+            replacements = configs[matchedPattern][suiteName];
+        } else {
+            replacements = {}; // If the suite doesn't exist for this pattern, clear replacements
+        }
+        renderReplacements();
+        showStatus(`Suite switched to "${suiteName}"`);
+    }
+});
 
 // Delegated event listener for add/remove buttons on the replacement list
 document.getElementById('replacementList').addEventListener('click', (event) => {
@@ -35,9 +56,7 @@ document.getElementById('replacementList').addEventListener('click', (event) => 
     }
 });
 
-
 // --- CORE FUNCTIONS ---
-
 function showStatus(message, isError = false, duration = 2500) {
     statusEl.textContent = message;
     statusEl.className = `status-message ${isError ? 'error' : ''} visible`;
@@ -48,32 +67,45 @@ function showStatus(message, isError = false, duration = 2500) {
 
 async function loadConfig() {
     const { urlConfigs } = await chrome.storage.local.get('urlConfigs');
-    const configs = urlConfigs || {};
+    configs = urlConfigs || {};
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    
     if (!tab || !tab.url || !tab.url.startsWith('http')) {
         renderUI(null);
         return;
     }
-    const url = tab.url;
 
+    const url = tab.url;
     matchedPattern = '';
     replacements = {};
+    layer2Keys = []; // Reset layer2Keys for each load
 
     for (const [pattern, configSet] of Object.entries(configs)) {
         try {
-            const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-            if (regex.test(url)) {
-                replacements = configSet || {};
+            const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+            const regex2 = new RegExp('^' + pattern.slice(0, -2) + '$');
+            if (regex.test(url) || regex2.test(url)) {
                 matchedPattern = pattern;
+                configSets = configSet; // Store the entire configSet for the matched pattern
+                layer2Keys = Object.keys(configSet);
+
+                // Determine the suite to load: preferred suiteName, or the first available suite
+                if (configSet[suiteName]) {
+                    replacements = configSet[suiteName];
+                } else if (layer2Keys.length > 0) {
+                    suiteName = layer2Keys[0]; // Set suiteName to the first available suite
+                    localStorage.setItem('lastSuite', suiteName);
+                    replacements = configSet[suiteName];
+                } else {
+                    replacements = {}; // No suites found for this pattern
+                }
                 break;
             }
         } catch (e) {
             console.error(`Invalid regex pattern in config: ${pattern}`);
         }
     }
-
+    
     renderUI(tab);
 }
 
@@ -85,12 +117,25 @@ function renderUI(tab) {
     const replaceBtnEl = document.getElementById('replaceBtn');
 
     if (matchedPattern) {
-        // A config was found, so we show the editor for it.
-        // The pattern is now in an editable input field.
+        const optionsHtml = layer2Keys.map(key =>
+            `<option value="${key}" ${key === suiteName ? 'selected' : ''}>${key}</option>`
+        ).join('');
+
         configInfoEl.innerHTML = `
-            <label for="matchedPatternInput" style="display:block; margin-bottom: 4px;"><strong>Editing config for URL:</strong></label>
-            <input type="text" id="matchedPatternInput" value="${matchedPattern}" style="width: 95%;" placeholder="e.g., https://*.example.com/*">
-        `;
+      <label for="matchedPatternInput" style="display:block; margin-bottom: 4px;"><strong>Editing config for URL:</strong></label>
+      <input type="text" id="matchedPatternInput" value="${matchedPattern}" style="width: 95%;" placeholder="e.g., https://*.example.com/*">
+
+      <label for="myDropdown" class="dropdown-label">
+        Select suite:
+      </label>
+      <select
+        id="myDropdown"
+      >
+        ${optionsHtml}
+      </select>
+   
+    `;
+
         configInfoEl.style.display = 'block';
         tableContainerEl.style.display = 'block';
         actionsEl.style.display = 'flex';
@@ -98,7 +143,6 @@ function renderUI(tab) {
         replaceBtnEl.disabled = false;
         renderReplacements();
     } else {
-        // No config found, show the creation UI.
         configInfoEl.style.display = 'none';
         tableContainerEl.style.display = 'none';
         actionsEl.style.display = 'none';
@@ -107,7 +151,6 @@ function renderUI(tab) {
         if (tab) {
             newConfigAreaEl.style.display = 'block';
             const urlObject = new URL(tab.url);
-            
             document.getElementById('newUrlPatternInput').value = `${urlObject.protocol}//${urlObject.hostname}/*`;
         } else {
             newConfigAreaEl.style.display = 'none';
@@ -116,12 +159,11 @@ function renderUI(tab) {
     }
 }
 
-
 function renderReplacements() {
     const container = document.getElementById('replacementList');
     container.innerHTML = '';
 
-    
+
     const header = document.createElement('div');
     header.className = 'table-header';
     header.innerHTML = `
@@ -131,13 +173,13 @@ function renderReplacements() {
     `;
     container.appendChild(header);
 
-    
+
     Object.entries(replacements).forEach(([key, value], index) => {
         const row = createReplacementRow(key, value, index);
         container.appendChild(row);
     });
 
-    
+
     const newRow = createReplacementRow('', '', null, true);
     container.appendChild(newRow);
 }
@@ -176,7 +218,7 @@ async function createNewConfig() {
         return;
     }
 
-    
+
     try {
         new RegExp(newPattern.replace(/\*/g, '.*'));
     } catch (e) {
@@ -192,12 +234,43 @@ async function createNewConfig() {
         return;
     }
 
-    configs[newPattern] = {};
+    configs[newPattern] = {suite1:{}};
     await chrome.storage.local.set({ urlConfigs: configs });
     showStatus('New configuration created successfully!');
     await loadConfig();
 }
 
+async function addNewSuite() {
+    if (!matchedPattern) {
+        showStatus('Please select or create a URL configuration first.', true);
+        return;
+    }
+
+    const newSuiteName = prompt('Enter the name for the new suite:');
+    if (!newSuiteName || newSuiteName.trim() === '') {
+        showStatus('Suite name cannot be empty.', true);
+        return;
+    }
+
+    const trimmedSuiteName = newSuiteName.trim();
+
+    if (configs[matchedPattern] && configs[matchedPattern][trimmedSuiteName]) {
+        showStatus(`Suite "${trimmedSuiteName}" already exists for this URL pattern.`, true);
+        return;
+    }
+
+    // Add the new suite to the existing configuration for the matched pattern
+    if (!configs[matchedPattern]) {
+        configs[matchedPattern] = {};
+    }
+    configs[matchedPattern][trimmedSuiteName] = {}; // Initialize with an empty object
+
+    await chrome.storage.local.set({ urlConfigs: configs });
+    showStatus(`New suite "${trimmedSuiteName}" created successfully!`);
+    suiteName = trimmedSuiteName; // Automatically switch to the new suite
+    localStorage.setItem('lastSuite', suiteName);
+    await loadConfig(); // Reload to update the dropdown and display the new suite
+}
 
 async function applyContentScript() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -235,15 +308,15 @@ async function saveChanges() {
         return;
     }
 
-    // Collect all the key/value replacement pairs from the UI
-    const newReplacements = {};
+    // Collect all the key/value replacement pairs from the UI for the current suite
+    const currentSuiteReplacements = {};
     document.querySelectorAll('.replacement-row').forEach(row => {
         const keyInput = row.querySelector('.key');
         const valueInput = row.querySelector('.value');
         if (keyInput && valueInput) {
             const key = keyInput.value.trim();
             if (key) {
-                newReplacements[key] = valueInput.value.trim();
+                currentSuiteReplacements[key] = valueInput.value.trim();
             }
         }
     });
@@ -258,12 +331,19 @@ async function saveChanges() {
             showStatus('A configuration with this new pattern already exists.', true);
             return;
         }
-        // Remove the old configuration entry.
+        // Move the old configuration entry to the new pattern
+        configs[newPattern] = configs[oldPattern];
         delete configs[oldPattern];
+        matchedPattern = newPattern; // Update matchedPattern to the new one
     }
 
-    // Save the replacements under the new (or existing) pattern key.
-    configs[newPattern] = newReplacements;
+    // Ensure the current suite exists under the (potentially new) pattern
+    if (!configs[matchedPattern]) {
+        configs[matchedPattern] = {};
+    }
+    // Update the specific suite with the new replacements
+    configs[matchedPattern][suiteName] = currentSuiteReplacements;
+
     await chrome.storage.local.set({ urlConfigs: configs });
 
     showStatus('Configuration saved successfully!');
