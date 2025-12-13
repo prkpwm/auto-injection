@@ -94,10 +94,12 @@ Content:
 File: contentScript.js
 Content:
 chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
+
     const config = urlConfigs || {};
     const currentUrl = window.location.href;
     let replacements = {};
     const sortedEntries = Object.entries(config).sort((a, b) => a[0].length - b[0].length);
+    let suiteName = "suite1"
 
     chrome.runtime.sendMessage({
         type: 'DEBUG',
@@ -110,7 +112,7 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
         const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
         const regex2 = new RegExp('^' + pattern.slice(0, -2) + '$')
         if (regex.test(currentUrl) || regex2.test(currentUrl)) {
-            replacements = values.suite1 || {};
+            replacements = values[suiteName] || {};
             break;
         }
     }
@@ -131,8 +133,28 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
 
     function replaceText(element) {
         if ((element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') && !processedElements.has(element)) {
+            chrome.runtime.sendMessage({
+                type: 'DEBUG',
+                data: {
+                    text: `replaceText ${JSON.stringify(replacements)} `
+                }
+            });
             for (const [placeholder, value] of Object.entries(replacements)) {
-                const attributesToCheck = ['name', 'id', 'placeholder', 'type'];
+                const attributesToCheck = [
+                    'name',
+                    'id',
+                    'placeholder',
+                    'type',
+                    'aria-label',
+                    'title',
+                    'data-label',
+                    'data-name',
+                    'alt',
+                    'autocomplete',
+                    'class',
+                    'role'
+                ];
+
                 if (attributesToCheck.some(attr => {
                     const attrValue = element[attr];
                     return attrValue && attrValue.toLowerCase().includes(placeholder.toLowerCase());
@@ -160,21 +182,29 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
         }
     }
 
-    replaceText(document.body);
     new MutationObserver(mutations => {
         mutations.forEach(m => m.addedNodes.forEach(replaceText));
     }).observe(document.body, { childList: true, subtree: true });
 
 
 
-    function findMatchingConfig(url, configs) {
+    function findMatchingConfig(url, configs, suiteName) {
         for (const [pattern, replacements] of Object.entries(configs)) {
             try {
 
                 const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
                 const regex2 = new RegExp('^' + pattern.slice(0, -2) + '$')
+
+
                 if (regex.test(url) || regex2.test(url)) {
-                    return replacements.suite1;
+
+                    chrome.runtime.sendMessage({
+                        type: 'DEBUG',
+                        data: {
+                            text: replacements[suiteName]
+                        }
+                    });
+                    return replacements[suiteName];
                 }
             } catch (e) {
                 console.error(`AutoKey: Invalid pattern in config: ${pattern}`);
@@ -183,36 +213,28 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
         return null;
     }
 
-    function replaceTextInNode(node, replacements) {
-        if (node.nodeType === Node.TEXT_NODE) {
-            let text = node.textContent;
-            for (const [placeholder, value] of Object.entries(replacements)) {
-
-                const regex = new RegExp(placeholder, 'g');
-                text = text.replace(regex, value);
-            }
-            node.textContent = text;
-        } else {
-
-            for (const child of node.childNodes) {
-                replaceTextInNode(child, replacements);
-            }
-        }
-    }
-
 
     async function main() {
         const { urlConfigs } = await chrome.storage.local.get('urlConfigs');
+        const { activeSuiteName } = await chrome.storage.local.get('activeSuiteName');
+        suiteName = activeSuiteName
+
+        chrome.runtime.sendMessage({
+            type: 'DEBUG',
+            data: {
+                text: suiteName
+            }
+        });
         if (!urlConfigs || Object.keys(urlConfigs).length === 0) {
             console.log('AutoKey: No configurations found.');
             return;
         }
 
-        const replacements = findMatchingConfig(window.location.href, urlConfigs);
+        replacements = findMatchingConfig(window.location.href, urlConfigs, activeSuiteName);
 
         if (replacements && Object.keys(replacements).length > 0) {
             console.log(`AutoKey: Found config for ${window.location.href}. Applying replacements.`);
-            replaceTextInNode(document.body, replacements);
+            replaceText(document.body)
         }
     }
 
@@ -259,233 +281,6 @@ Content:
 }
 
 ------------------------------------------------------------
-File: popup.css
-Content:
-:root {
-    --bg-color: #f7f9fc;
-    --card-bg-color: #ffffff;
-    --primary-color: #0078d7;
-    --primary-hover-color: #005a9e;
-    --text-color: #333;
-    --subtle-text-color: #666;
-    --border-color: #e1e4e8;
-    --shadow-color: rgba(0, 0, 0, 0.05);
-    --danger-color: #d9534f;
-    --danger-hover-color: #c9302c;
-    --success-color: #4caf50;
-    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-body {
-    width: 380px;
-    margin: 0;
-    font-family: var(--font-family);
-    background-color: var(--bg-color);
-    color: var(--text-color);
-}
-
-.container {
-    padding: 16px;
-    /* width: min-content; */
-}
-
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-}
-
-h3 {
-    margin: 0;
-    font-size: 20px;
-    color: var(--primary-color);
-}
-
-.config-info-container {
-    font-size: 13px;
-    margin-bottom: 12px;
-    padding: 8px 12px;
-    background-color: #e9f5ff;
-    border-left: 3px solid var(--primary-color);
-    border-radius: 4px;
-    color: var(--subtle-text-color);
-}
-
-.table-container {
-    background-color: var(--card-bg-color);
-    border-radius: 8px;
-    box-shadow: 0 2px 8px var(--shadow-color);
-    overflow: hidden;
-    margin-bottom: 16px;
-}
-
-.replacement-row, .table-header {
-    display: grid;
-    grid-template-columns: 1fr 1fr 40px;
-    gap: 8px;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border-color);
-    align-items: center;
-}
-
-.table-header {
-    font-weight: 600;
-    font-size: 12px;
-    color: var(--subtle-text-color);
-    background-color: #fbfcfd;
-    padding-top: 12px;
-    padding-bottom: 12px;
-}
-
-.replacement-row:last-child {
-    border-bottom: none;
-}
-
-input[type="text"] {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 13px;
-    box-sizing: border-box;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-input[type="text"]:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
-}
-
-.actions {
-    display: flex;
-    gap: 8px;
-}
-
-button {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    background-color: #f0f2f5;
-    color: #333;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
-}
-
-button:hover {
-    background-color: #e1e4e8;
-    border-color: #ccc;
-}
-
-button.primary-btn {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-button.primary-btn:hover {
-    background: var(--primary-hover-color);
-    border-color: var(--primary-hover-color);
-}
-
-.icon-btn {
-    background: none;
-    border: none;
-    padding: 4px;
-    cursor: pointer;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.2s;
-}
-
-.icon-btn.remove-btn:hover { background-color: #ffebee; }
-.icon-btn.add-btn:hover { background-color: #e8f5e9; }
-
-.icon-btn svg { transition: transform 0.2s; }
-.icon-btn:hover svg { transform: scale(1.1); }
-
-.status-message {
-    margin-top: 12px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--success-color);
-    text-align: center;
-    opacity: 0;
-    transition: opacity 0.3s ease-in-out;
-}
-
-.status-message.visible {
-    opacity: 1;
-}
-
-.status-message.error {
-    color: var(--danger-color);
-}
-
-/* Add to your existing CSS */
-
-/* Style for the select dropdown */
-#myDropdown {
-    /* Remove default browser styling */
-    -webkit-appearance: none; /* For Chrome, Safari, Edge */
-    -moz-appearance: none;    /* For Firefox */
-    appearance: none;
-
-    /* Basic styling */
-    width: 95%;
-    padding: 10px 12px; /* Increased padding for better visual spacing */
-    border: 1px solid var(--border-color);
-    border-radius: 6px; /* Slightly more rounded corners */
-    font-size: 14px; /* Slightly larger font for readability */
-    box-sizing: border-box;
-    background-color: var(--card-bg-color); /* Use card background for consistency */
-    color: var(--text-color);
-    cursor: pointer;
-    line-height: 1.5; /* Ensure good line height */
-
-    /* Custom arrow using background-image */
-    background-image: url('data:image/svg+xml;utf8,<svg fill="%23333" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
-    background-repeat: no-repeat;
-    background-position: right 12px center; /* Position arrow on the right */
-    background-size: 16px; /* Size of the arrow icon */
-
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-#myDropdown:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
-}
-
-/* Style for the label associated with the dropdown */
-.dropdown-label {
-    display: block;
-    margin-top: 8px;
-    margin-bottom: 8px; /* Add some space below the label */
-    font-size: 13px;
-    font-weight: 700; /* Make it a bit bolder */
-    color: var(--subtle-text-color); /* Use subtle text color */
-}
-
-/* Ensure options inside the select also inherit text color */
-#myDropdown option {
-    color: var(--text-color);
-    background-color: var(--card-bg-color);
-}
-
-#matchedPatternInput {
-    padding: 10px 12px;
-}
-------------------------------------------------------------
 File: popup.html
 Content:
 <!DOCTYPE html>
@@ -502,12 +297,7 @@ Content:
     <div class="container">
         <header class="header">
             <h3>Auto Injection</h3>
-            <button id="newSuiteBtn">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                    <path d="M11 13H5V11H11V5H13V11H19V13H13V19H11V13Z" />
-                </svg>
-                New Suite
-            </button>
+
             <button id="replaceBtn" class="primary-btn">Inject</button>
 
         </header>
@@ -520,7 +310,28 @@ Content:
                 style="width: 95%; margin-bottom: 8px;">
             <button id="createConfigBtn" class="primary-btn" style="width: 100%;">Create New Configuration</button>
         </div>
-
+        <div class="suite-actions">
+            <button id="newSuiteBtn" title="New Suite">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                    <path d="M11 13H5V11H11V5H13V11H19V13H13V19H11V13Z" />
+                </svg>
+                New
+            </button>
+            <button id="editSuiteBtn" title="Edit Suite Name">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                    <path
+                        d="M5 19H6.4L15.025 10.375L13.625 8.975L5 17.6V19ZM19.3 8.925L15.05 4.725L16.45 3.325C16.833 2.942 17.304 2.75 17.863 2.75C18.421 2.75 18.892 2.942 19.275 3.325L20.675 4.725C21.058 5.108 21.25 5.579 21.25 6.137C21.25 6.696 21.058 7.167 20.675 7.55L19.3 8.925ZM17.85 10.4L7.25 21H3V16.75L13.6 6.15L17.85 10.4Z" />
+                </svg>
+                Edit
+            </button>
+            <button id="deleteSuiteBtn" class="delete-btn" title="Delete Suite">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                    <path
+                        d="M7 21C6.45 21 5.979 20.804 5.587 20.412C5.195 20.02 5 19.55 5 19V6H4V4H9V3H15V4H20V6H19V19C19 19.55 18.804 20.021 18.412 20.413C18.02 20.805 17.55 21 17 21H7Z" />
+                </svg>
+                Delete
+            </button>
+        </div>
 
         <div class="table-container">
             <div id="replacementList">
@@ -580,7 +391,9 @@ document.getElementById('exportBtn').addEventListener('click', exportConfig);
 document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
 document.getElementById('importFile').addEventListener('change', importConfig);
 document.getElementById('createConfigBtn').addEventListener('click', createNewConfig);
-document.getElementById('newSuiteBtn').addEventListener('click', addNewSuite); // Added new event listener
+document.getElementById('newSuiteBtn').addEventListener('click', addNewSuite);
+document.getElementById('editSuiteBtn').addEventListener('click', editSuiteName);
+document.getElementById('deleteSuiteBtn').addEventListener('click', deleteSuite);
 
 // Dynamic dropdown suite switch
 document.addEventListener('change', (event) => {
@@ -670,7 +483,7 @@ async function loadConfig() {
             console.error(`Invalid regex pattern in config: ${pattern}`);
         }
     }
-    
+
     renderUI(tab);
 }
 
@@ -680,6 +493,9 @@ function renderUI(tab) {
     const tableContainerEl = document.querySelector('.table-container');
     const actionsEl = document.querySelector('.actions');
     const replaceBtnEl = document.getElementById('replaceBtn');
+    const newSuiteBtnEl = document.getElementById('newSuiteBtn');
+    const editSuiteBtnEl = document.getElementById('editSuiteBtn');
+    const deleteSuiteBtnEl = document.getElementById('deleteSuiteBtn');
 
     if (matchedPattern) {
         const optionsHtml = layer2Keys.map(key =>
@@ -687,31 +503,40 @@ function renderUI(tab) {
         ).join('');
 
         configInfoEl.innerHTML = `
-      <label for="matchedPatternInput" style="display:block; margin-bottom: 4px;"><strong>Editing config for URL:</strong></label>
-      <input type="text" id="matchedPatternInput" value="${matchedPattern}" style="width: 95%;" placeholder="e.g., https://*.example.com/*">
+   <label for="matchedPatternInput" style="display:block; margin-bottom: 4px;"><strong>Editing config for URL:</strong></label>
+   <input type="text" id="matchedPatternInput" value="${matchedPattern}" style="width: 95%;" placeholder="e.g., https://*.example.com/*">
 
-      <label for="myDropdown" class="dropdown-label">
-        Select suite:
-      </label>
-      <select
-        id="myDropdown"
-      >
-        ${optionsHtml}
-      </select>
-   
-    `;
+   <label for="myDropdown" class="dropdown-label">
+    Select suite:
+   </label>
+   <select
+    id="myDropdown"
+   >
+    ${optionsHtml}
+   </select>
+ 
+  `;
 
         configInfoEl.style.display = 'block';
         tableContainerEl.style.display = 'block';
         actionsEl.style.display = 'flex';
         newConfigAreaEl.style.display = 'none';
+
         replaceBtnEl.disabled = false;
+        newSuiteBtnEl.disabled = false;
+        editSuiteBtnEl.disabled = false;
+        deleteSuiteBtnEl.disabled = false;
+
         renderReplacements();
     } else {
         configInfoEl.style.display = 'none';
         tableContainerEl.style.display = 'none';
         actionsEl.style.display = 'none';
+
         replaceBtnEl.disabled = true;
+        newSuiteBtnEl.disabled = true;
+        editSuiteBtnEl.disabled = true;
+        deleteSuiteBtnEl.disabled = true;
 
         if (tab) {
             newConfigAreaEl.style.display = 'block';
@@ -732,10 +557,10 @@ function renderReplacements() {
     const header = document.createElement('div');
     header.className = 'table-header';
     header.innerHTML = `
-        <div>Key (Placeholder)</div>
-        <div>Value (Replacement)</div>
-        <div>Action</div>
-    `;
+    <div>Key</div>
+    <div>Value</div>
+    <div>Action</div>
+  `;
     container.appendChild(header);
 
 
@@ -755,20 +580,20 @@ function createReplacementRow(key, value, index, isNew = false) {
 
     if (!isNew) {
         row.innerHTML = `
-            <div><input type="text" class="key" value="${key}" placeholder="URL Placeholder"></div>
-            <div><input type="text" class="value" value="${value}" placeholder="Replacement Value"></div>
-            <button class="icon-btn remove-btn" data-index="${index}" title="Remove">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#d9534f" width="20" height="20"><path d="M7 21C6.45 21 5.979 20.804 5.587 20.412C5.195 20.02 5 19.55 5 19V6H4V4H9V3H15V4H20V6H19V19C19 19.55 18.804 20.021 18.412 20.413C18.02 20.805 17.55 21 17 21H7Z"/></svg>
-            </button>
-        `;
+      <div><input type="text" class="key" value="${key}" placeholder="URL Placeholder"></div>
+      <div><input type="text" class="value" value="${value}" placeholder="Replacement Value"></div>
+      <button class="icon-btn remove-btn" data-index="${index}" title="Remove">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#d9534f" width="20" height="20"><path d="M7 21C6.45 21 5.979 20.804 5.587 20.412C5.195 20.02 5 19.55 5 19V6H4V4H9V3H15V4H20V6H19V19C19 19.55 18.804 20.021 18.412 20.413C18.02 20.805 17.55 21 17 21H7Z"/></svg>
+      </button>
+    `;
     } else {
         row.innerHTML = `
-            <div><input type="text" id="newKey" placeholder="New Key"></div>
-            <div><input type="text" id="newValue" placeholder="New Value"></div>
-            <button class="icon-btn add-btn" title="Add">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#4caf50" width="20" height="20"><path d="M11 19V13H5V11H11V5H13V11H19V13H13V19H11Z"/></svg>
-            </button>
-        `;
+      <div><input type="text" id="newKey" placeholder="New Key"></div>
+      <div><input type="text" id="newValue" placeholder="New Value"></div>
+      <button class="icon-btn add-btn" title="Add">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#4caf50" width="20" height="20"><path d="M11 19V13H5V11H11V5H13V11H19V13H13V19H11Z"/></svg>
+      </button>
+    `;
     }
     return row;
 }
@@ -799,7 +624,7 @@ async function createNewConfig() {
         return;
     }
 
-    configs[newPattern] = {suite1:{}};
+    configs[newPattern] = { suite1: {} };
     await chrome.storage.local.set({ urlConfigs: configs });
     showStatus('New configuration created successfully!');
     await loadConfig();
@@ -837,10 +662,77 @@ async function addNewSuite() {
     await loadConfig(); // Reload to update the dropdown and display the new suite
 }
 
+async function editSuiteName() {
+    if (!matchedPattern || !suiteName) {
+        showStatus('No suite selected to edit.', true);
+        return;
+    }
+
+    const oldSuiteName = suiteName;
+    const newSuiteName = prompt('Enter the new name for this suite:', oldSuiteName);
+
+    if (!newSuiteName || newSuiteName.trim() === '') {
+        showStatus('Suite name cannot be empty.', true);
+        return;
+    }
+
+    const trimmedNewName = newSuiteName.trim();
+
+    if (trimmedNewName === oldSuiteName) {
+        return; // No changes made
+    }
+
+    if (configs[matchedPattern] && configs[matchedPattern][trimmedNewName]) {
+        showStatus(`Suite "${trimmedNewName}" already exists for this URL pattern.`, true);
+        return;
+    }
+
+    // Rename the suite by copying data and deleting the old key
+    configs[matchedPattern][trimmedNewName] = configs[matchedPattern][oldSuiteName];
+    delete configs[matchedPattern][oldSuiteName];
+
+    await chrome.storage.local.set({ urlConfigs: configs });
+
+    // Update the current selection
+    suiteName = trimmedNewName;
+    localStorage.setItem('lastSuite', suiteName);
+
+    showStatus(`Suite renamed to "${trimmedNewName}"`);
+    await loadConfig(); // Reload UI to reflect changes
+}
+
+async function deleteSuite() {
+    if (!matchedPattern || !suiteName) {
+        showStatus('No suite selected to delete.', true);
+        return;
+    }
+
+    const suiteToDelete = suiteName;
+    const availableSuites = Object.keys(configs[matchedPattern] || {});
+    if (availableSuites.length <= 1) {
+        showStatus('Cannot delete the last suite. Add another suite first.', true, 4000);
+        return;
+    }
+
+    const confirmation = confirm(`Are you sure you want to delete the suite "${suiteToDelete}"? This action cannot be undone.`);
+    if (!confirmation) {
+        return;
+    }
+
+    delete configs[matchedPattern][suiteToDelete];
+    await chrome.storage.local.set({ urlConfigs: configs });
+
+    localStorage.removeItem('lastSuite');
+    showStatus(`Suite "${suiteToDelete}" has been deleted.`);
+    await loadConfig(); // Reload UI
+}
+
 async function applyContentScript() {
+    // Save the selected suite name to session storage before injecting
+    await chrome.storage.local.set({ activeSuiteName: suiteName });
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['contentScript.js'] });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id, }, files: ['contentScript.js'] });
         showStatus('Placeholders replaced!');
     } catch (error) {
         console.error("Script injection failed:", error);

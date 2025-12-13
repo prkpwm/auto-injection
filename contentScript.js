@@ -25,45 +25,73 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
     if (!replacements || typeof replacements !== 'object') return;
 
     const processedElements = new WeakSet();
+    const replaceQueue = [];
+    const DELAY_MS = 16;
 
-    function simulateInput(element, value) {
+    async function simulateInput(element, value) {
         element.focus();
         element.value = '';
         for (let i = 0; i < value.length; i++) {
             element.value += value[i];
             element.dispatchEvent(new Event('input', { bubbles: true }));
+            await new Promise(resolve => setTimeout(resolve, DELAY_MS));
         }
         element.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
+    async function executeReplaceQueue() {
+        for (const operation of replaceQueue) {
+            await simulateInput(operation.element, operation.value);
+            chrome.runtime.sendMessage({
+                type: 'TEXT_REPLACED',
+                data: {
+                    placeholder: operation.placeholder,
+                    originalText: operation.originalText,
+                    newText: operation.element.value,
+                    url: window.location.href,
+                    elementType: operation.element.tagName
+                }
+            });
+            await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+        }
+    }
+
     function replaceText(element) {
+        replacements ||={} 
         if ((element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') && !processedElements.has(element)) {
-              chrome.runtime.sendMessage({
-                    type: 'DEBUG',
-                    data: {
-                        text: `replaceText ${ JSON.stringify(replacements)} `
-                    }
-                });
+            chrome.runtime.sendMessage({
+                type: 'DEBUG',
+                data: {
+                    text: `replaceText ${JSON.stringify(replacements)} `
+                }
+            });
+
             for (const [placeholder, value] of Object.entries(replacements)) {
-                const attributesToCheck = ['name', 'id', 'placeholder', 'type'];
+                const attributesToCheck = [
+                    'name',
+                    'id',
+                    'placeholder',
+                    'type',
+                    'aria-label',
+                    'title',
+                    'data-label',
+                    'data-name',
+                    'alt',
+                    'autocomplete',
+                    'class',
+                    'role'
+                ];
+
                 if (attributesToCheck.some(attr => {
                     const attrValue = element[attr];
                     return attrValue && attrValue.toLowerCase().includes(placeholder.toLowerCase());
                 })) {
-                    const originalText = element.value;
-                    setTimeout(() => {
-                        simulateInput(element, value);
-                        chrome.runtime.sendMessage({
-                            type: 'TEXT_REPLACED',
-                            data: {
-                                placeholder,
-                                originalText,
-                                newText: element.value,
-                                url: window.location.href,
-                                elementType: element.tagName
-                            }
-                        });
-                    }, 0);
+                    replaceQueue.push({
+                        element,
+                        value,
+                        placeholder,
+                        originalText: element.value
+                    });
                     processedElements.add(element);
                     break;
                 }
@@ -74,7 +102,10 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
     }
 
     new MutationObserver(mutations => {
-        mutations.forEach(m => m.addedNodes.forEach(replaceText));
+        setTimeout(() => {
+            mutations.forEach(m => m.addedNodes.forEach(replaceText));
+            executeReplaceQueue();
+        }, DELAY_MS);
     }).observe(document.body, { childList: true, subtree: true });
 
 
@@ -86,7 +117,7 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
                 const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
                 const regex2 = new RegExp('^' + pattern.slice(0, -2) + '$')
 
-    
+
                 if (regex.test(url) || regex2.test(url)) {
 
                     chrome.runtime.sendMessage({
@@ -125,7 +156,8 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
 
         if (replacements && Object.keys(replacements).length > 0) {
             console.log(`AutoKey: Found config for ${window.location.href}. Applying replacements.`);
-            replaceText(document.body)
+            replaceText(document.body);
+            executeReplaceQueue();
         }
     }
 

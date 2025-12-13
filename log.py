@@ -3,8 +3,14 @@ import fnmatch
 
 # Configuration
 directory = '.'  # Target directory
-log_file = 'log.md'  # Output log file
-exclude = ['*.md', '*.png', '.git','*.py']  # Patterns to exclude
+log_file = 'script.md'  # Output log file
+exclude = [
+    '*.md', 
+    '*.png', 
+    '.git',
+    '*.py',
+    '*.css'
+]  # Patterns to exclude
 
 # Helper to check if a file or dir should be excluded
 def is_excluded(path):

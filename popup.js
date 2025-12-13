@@ -18,6 +18,7 @@ document.getElementById('createConfigBtn').addEventListener('click', createNewCo
 document.getElementById('newSuiteBtn').addEventListener('click', addNewSuite);
 document.getElementById('editSuiteBtn').addEventListener('click', editSuiteName);
 document.getElementById('deleteSuiteBtn').addEventListener('click', deleteSuite);
+document.getElementById('viewConfigBtn').addEventListener('click', viewConfig);
 
 // Dynamic dropdown suite switch
 document.addEventListener('change', (event) => {
@@ -143,7 +144,6 @@ function renderUI(tab) {
 
         configInfoEl.style.display = 'block';
         tableContainerEl.style.display = 'block';
-        actionsEl.style.display = 'flex';
         newConfigAreaEl.style.display = 'none';
 
         replaceBtnEl.disabled = false;
@@ -155,7 +155,6 @@ function renderUI(tab) {
     } else {
         configInfoEl.style.display = 'none';
         tableContainerEl.style.display = 'none';
-        actionsEl.style.display = 'none';
 
         replaceBtnEl.disabled = true;
         newSuiteBtnEl.disabled = true;
@@ -224,6 +223,55 @@ function createReplacementRow(key, value, index, isNew = false) {
 
 
 // --- ACTION HANDLERS ---
+
+async function viewConfig() {
+    if (!matchedPattern) {
+        showStatus('No configuration loaded to view.', true);
+        return;
+    }
+
+    const configData = {
+        pattern: matchedPattern,
+        currentSuite: suiteName,
+        suites: configs[matchedPattern] || {},
+        currentReplacements: replacements
+    };
+
+    const configText = JSON.stringify(configData, null, 2);
+    
+    // Create a modal or new window to display the config
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 1000; display: flex;
+        align-items: center; justify-content: center;
+    `;
+    
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: white; padding: 20px; border-radius: 8px;
+        max-width: 80%; max-height: 80%; overflow: auto;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    `;
+    
+    content.innerHTML = `
+        <h3>Configuration View</h3>
+        <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto;">${configText}</pre>
+        <button id="closeModal" style="margin-top: 10px; padding: 8px 16px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+    `;
+    
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+    
+    // Close modal handlers
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) document.body.removeChild(modal);
+    });
+    
+    content.querySelector('#closeModal').addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+}
 
 async function createNewConfig() {
     const newPattern = document.getElementById('newUrlPatternInput').value.trim();
