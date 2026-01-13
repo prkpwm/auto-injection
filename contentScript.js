@@ -25,23 +25,21 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
     if (!replacements || typeof replacements !== 'object') return;
 
     const processedElements = new WeakSet();
+    const completedElements = new WeakSet();
     const replaceQueue = [];
     const DELAY_MS = 16;
 
     async function simulateInput(element, value) {
         element.focus();
-        element.value = '';
-        for (let i = 0; i < value.length; i++) {
-            element.value += value[i];
-            element.dispatchEvent(new Event('input', { bubbles: true }));
-            await new Promise(resolve => setTimeout(resolve, DELAY_MS));
-        }
+        element.value = value;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     async function executeReplaceQueue() {
         for (const operation of replaceQueue) {
             await simulateInput(operation.element, operation.value);
+            completedElements.add(operation.element);
             chrome.runtime.sendMessage({
                 type: 'TEXT_REPLACED',
                 data: {
@@ -54,11 +52,12 @@ chrome.storage.local.get('urlConfigs', ({ urlConfigs }) => {
             });
             await new Promise(resolve => setTimeout(resolve, DELAY_MS));
         }
+        replaceQueue.length = 0;
     }
 
     function replaceText(element) {
         replacements ||={} 
-        if ((element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') && !processedElements.has(element)) {
+        if ((element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') && !processedElements.has(element) && !completedElements.has(element)) {
             chrome.runtime.sendMessage({
                 type: 'DEBUG',
                 data: {
